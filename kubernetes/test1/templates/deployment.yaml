@@ -5,7 +5,7 @@ metadata:
  labels:
    app: test1
 spec:
- replicas: 4
+ replicas: 1
  selector:
    matchLabels:
      app: test1
@@ -17,7 +17,7 @@ spec:
      containers:
      - name: test1
        image: test1.0
-       imagePullPolicy: Never
+       imagePullPolicy: Never # minikube local docker
        env:
        - name: DB_HOST
          value: {{ .Values.db.host }}
