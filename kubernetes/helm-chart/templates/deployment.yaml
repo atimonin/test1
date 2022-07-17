@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: test1
+ labels:
+   app: test1
+spec:
+ replicas: 4
+ selector:
+   matchLabels:
+     app: test1
+ template:
+   metadata:
+     labels:
+       app: test1
+   spec:
+     containers:
+     - name: test1
+       image: test1.0
+       imagePullPolicy: Never
+       env:
+       - name: DB_HOST
+         value: {{ .Values.db.host }}
+       - name: DB_NAME
+         value: {{ .Values.db.name }}
+       - name: DB_USER
+         value: {{ .Values.db.user }}
+       - name: DB_PASS
+         valueFrom:
+          secretKeyRef:
+           name: test-postgers-postgresql
+           key: password
+        
+       ports:
+       - containerPort: 8080

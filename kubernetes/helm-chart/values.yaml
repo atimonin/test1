@@ -1,0 +1,4 @@
+db:
+  name: blacklist
+  host: test-postgers-postgresql.default.svc.cluster.local
+  user: blk_user

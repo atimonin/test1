@@ -1,73 +1,49 @@
-import os.path
+import os
+#import requests
 import flask
-import json
-import requests
-import werkzeug.datastructures
-import itertools
-from google.cloud import datastore
-from collections import OrderedDict
-
+from flask import request,abort
+import psycopg2
+from datetime import datetime
 
 app = flask.Flask(__name__)
 
-@app.route('/liveness', methods=['GET'])
-def liveness():
-    return 'Alive'
+db_conn = None
+db_cursor = None
+#ip_header_name = 'X-Forwarded-For'
+ip_header_name = 'Host'
 
 @app.route('/', methods=['GET'])
-def root():
-    return 'SizeRecommendation needs a classId and loginId as part of the path!'
+def do_work():
+    select_addr = "select * from blacklist where ip_addr = %s limit 1"
+    ip_addr = request.headers[ip_header_name]
+    db_cursor.execute(select_addr, (ip_addr,))
+    if db_cursor.rowcount > 0:
+        abort(404)
+    args = request.args
+    n = args.get('n', type=int)
+    if n:
+        return format(n*n, 'd') + '\n'
+    return 'Param error', 400
 
-@app.route('/classId/<classId>/loginId/<loginId>')
-def product_model_productId(classId,loginId):
-    loginId= loginId + '_loginId'
-    modelType='SizeRecommendation'
-    response={'recs_data':{'SizeRecommendation':reco_lookup(modelType, classId, loginId)}}
-    return (json.dumps(response), 200, {"access-control-allow-origin": "*", "content-type": "application/json"})
-            
-def reco_lookup(modelType, classId, loginId):
-    datastore_client= datastore.Client()
-    try:
-        id = classId + '-' + loginId
-        query = datastore_client.query(kind=modelType)
-        first_key = datastore_client.key(modelType, id )
-        query.key_filter(first_key, '=')
-        
-        result= list(query.fetch(limit=1))
-        
-        if not result:
-            query_default = datastore_client.query(kind=modelType)
-            default_ds_key='0'
-            second_key=datastore_client.key(modelType, default_ds_key)
-            query_default.key_filter(second_key, '=')
-            result= list(query_default.fetch(limit=1))
-            if not result:
-                result=None
-                return result
-            else:
-                return result
-        else:
-            return result
-    except Exception as e:
-        print('hit an exception in reco_lookup')
-        return print(repr(e))
-    
+@app.route('/blacklisted', methods=['GET'])
+def blacklist():
+    insert_addr = "insert into blacklist (ip_addr, path, time) values (%s,%s,%s);"
+    ip_addr = request.headers[ip_header_name]
+    tstamp = datetime.now()
+    print (db_cursor.mogrify(insert_addr, (ip_addr,"/blacklisted",tstamp)))
+    db_cursor.execute(insert_addr, (ip_addr,"/blacklist",tstamp))
+    db_conn.commit()
+    abort(404)
 
-    
-# def main(request):
-#     with app.app_context():
-#         headers = werkzeug.datastructures.Headers()
-#         for key, value in request.headers.items():
-#             headers.add(key, value)
-#         with app.test_request_context(method=request.method, base_url=request.base_url, path=request.path, query_string=request.query_string, headers=headers, data=request.form):
-#             try:
-#                 rv = app.preprocess_request()
-#                 if rv is None:
-#                     rv = app.dispatch_request()
-#             except Exception as e:
-#                 rv = app.handle_user_exception(e)
-#             response = app.make_response(rv)
-#             return app.process_response(response)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=8000)
+    db_host = os.environ.get("DB_HOST")
+    db_name = os.environ.get("DB_NAME")
+    db_user = os.environ.get("DB_USER")
+    db_pass = os.environ.get("DB_PASS")
+    db_conn = psycopg2.connect(host=db_host,
+                               database=db_name,
+                               user=db_user,
+                               password=db_pass)
+    db_cursor = db_conn.cursor()
+    app.run(host='0.0.0.0',port=8080)
