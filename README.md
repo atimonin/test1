@@ -31,7 +31,7 @@ __EOF
 eval $(minikube docker-env)
 docker build -t test1.0 .
 ```
-- deplot test1 app
+- deploy test1 app
 ```
 helm upgrade --install test1 kubernetes/test1
 ```
